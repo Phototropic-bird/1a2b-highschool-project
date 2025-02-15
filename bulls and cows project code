@@ -1,0 +1,278 @@
+#include<bits/stdc++.h>
+#include<unistd.h>
+using namespace::std;
+#define Digits 4  //how many digits?
+#define N 10  //how many elements?
+#define repeatable 0  //is element repeatable?
+#define bot 1  //do you want me to give sugestion?
+#define to_random 1  
+#define autoRun 1  //do you wanna see data?
+struct Node{
+    char name;
+    vector<Node*> child;
+};
+typedef Node node;
+typedef node* ptn;
+ptn root=new node;
+string input;
+long long n,m;
+long long query_input[N]; //每次輸入答案的資料 (n 有幾個)
+long long info[Digits][N];
+pair<long long,string> ans={0,"00"};  //儲存suggestion算出的答案 //第一位為權術暫存   //第二位為答案暫存和算出的最終答案
+long long remain_size=0;
+vector<string> top_choice;
+void ini_tree(ptn,long long,set<long long>);  //rebuild the tree
+void to_clear(string,ptn);  //cut some tree branch
+void count_suggestion(string,ptn);  //count val of each possible guess
+void give_suggestion();  //pick a guess from top_choice
+string give_random();  //give a random answer
+pair<long long,long long> to_verify(string,string);  //to tell how much bulls and cows (sample, correctanswer)
+string give_respond(bool t){  //give information of your mode choice
+    if(t) return "ON";
+    else return "OFF";
+}
+int main(){
+    srand(time(NULL));
+    //vector<long long> vc; get_tree(vc,root);
+    cout<<"--------INFO--------"<<endl;
+    cout<<"Digits : "<<Digits<<endl;
+    cout<<"Element : "<<N<<endl;
+    cout<<"Repeatable : "<<give_respond(repeatable)<<endl;
+    cout<<"Bot : "<<give_respond(bot)<<endl;
+    cout<<"Random : "<<give_respond(to_random)<<endl;
+    cout<<"Auto Run : "<<give_respond(autoRun)<<endl;
+    cout<<"--------------------"<<endl;
+    if(autoRun){    //要auto run
+        long long times,u=0,max_amount_of_guess=-1;
+        long long answer_table[10000]={0};
+        cout<<"how many times would you like to run ? ";
+        cin>>times;
+        while(u!=times){
+            u++;
+            //initiate*******
+            root=new node;      
+            input.clear();
+            memset(query_input,0,sizeof(query_input));
+            memset(info,0,sizeof(info));
+            set<long long> qer;
+            ini_tree(root,0,qer);   
+            n=m=0;
+
+
+
+            //giving a random correct answer*******
+            string correctAns=give_random();
+
+
+            //give a random guess****
+            input=give_random();
+
+
+            //initiate the among of guess*****
+            long long guess=1;
+
+
+            //verify the first random guess******
+            pair<long long,long long> rt=to_verify(input,correctAns);
+            n=rt.first;
+            m=rt.second;
+
+
+            while(1){
+                for(long long i=0; i<Digits; i++) query_input[input[i]-'0']++;
+                string d,u; //因為下面函式會遞迴string 要用兩個空字串進入
+                to_clear(d,root);
+                count_suggestion(u,root);
+                give_suggestion();
+                if(remain_size==0){
+                    cout<<"uh...Did something go wrong ? "<<endl;
+                    break;
+                }
+                if(n==4){
+                    break;
+                }
+                input=ans.second;
+
+                //verify the random guess
+                pair<long long,long long> rt=to_verify(input,correctAns);
+                n=rt.first;
+                m=rt.second;
+                //因為新答案出現所以要重新initiate
+                memset(query_input,0,sizeof(query_input));
+                memset(info,0,sizeof(info));
+                ans.first=0;
+                remain_size=0;
+                top_choice.clear();
+
+                //增加一個{猜}
+                guess++;
+            }
+            if(guess>max_amount_of_guess){
+                max_amount_of_guess=guess;
+            }
+            answer_table[guess]++;
+        }
+        float average=0;
+        cout<<"the table : "<<endl;
+        for(long long i=1; i<=max_amount_of_guess; i++){
+            average+=i*answer_table[i];
+            cout<<i<<" : "<<answer_table[i]<<endl;
+        }
+        average/=(float)times;
+        cout<<"the average : "<<average<<endl;
+    }else{  //不要 auto run (答案其他人知道，這輔助你打敗他，其他人負責告訴你幾a幾b)
+        memset(query_input,0,sizeof(query_input));
+        memset(info,0,sizeof(info));
+        set<long long> qer;
+        ini_tree(root,0,qer);
+        long long guess=1;
+        cout<<"please initiate your first guess : ";
+        cin>>input;
+        cout<<"how many A ? how many B ? ";
+        cin>>n>>m;
+        while(1){
+            guess++;
+            for(long long i=0; i<Digits; i++) query_input[input[i]-'0']++;
+            string d,u;
+            to_clear(d,root);
+            count_suggestion(u,root);
+            give_suggestion();
+            if(remain_size==0){
+                cout<<"uh...Did something go wrong ? "<<endl;
+                break;
+            }else cout<<"the remain size : "<<remain_size<<endl;
+            if(bot){
+                cout<<"My answer is : "<<ans.second<<endl;
+                input=ans.second;
+            }else{
+                input.clear();
+                cout<<"My suggestion is : "<<ans.second<<endl;
+                cout<<"Please input your answer : ";
+                cin>>input;
+            }
+            cout<<"How many A ? How many B ? ";
+            cin>>n>>m;
+            if(n==4){
+                if(bot) cout<<"Yes! that was fun. ";
+                else cout<<"Congrates! ";
+                cout<<guess<<" guesses were used."<<endl;
+                break;
+            }
+            memset(query_input,0,sizeof(query_input));
+            memset(info,0,sizeof(info));
+            ans.first=0;
+            remain_size=0;
+            top_choice.clear();
+        }
+    }
+    
+    return 0;
+}
+void ini_tree(ptn a,long long flag,set<long long> qer){     //初始化 tree
+    if(flag==Digits) return;
+    for(long long i=0; i<N; i++){
+        set<long long> cpy=qer;
+        if(!repeatable && qer.size()!=0 && qer.find(i)!=qer.end()) continue;
+        ptn b=new node;
+        b->name=i+'0';
+        if(!repeatable) cpy.insert(i);
+        ini_tree(b,flag+1,cpy);
+        a->child.push_back(b);
+    }
+}
+
+void count_suggestion(string data,ptn a){   //算出每個suggestion 的權術
+    for(auto it=a->child.begin(); it!=a->child.end(); it++){
+        string cpy=data;
+        cpy.push_back((*it)->name);
+        if(cpy.size()==Digits){
+
+
+            //算權術*********
+            
+            long long val=0;
+            set<long long> repeat;
+            for(long long i=0; i<Digits; i++){
+                if(repeat.find(cpy[i]-'0')!=repeat.end()) val+=(info[i][cpy[i]-'0'])/2; //一個猜中有重複的數字會降低可提供的資訊，所以將權術(重複的數字在他自己位數的出現次數)除以2
+                else{
+                    repeat.insert(cpy[i]-'0');
+                    val+=info[i][cpy[i]-'0'];   //權術(重複的數字在他自己位數的出現次數)，權術最高的被選
+                }
+            }
+            if(val>ans.first){
+                ans.first=val;
+                top_choice.clear();
+                top_choice.push_back(cpy);
+            }else if(val==ans.first) top_choice.push_back(cpy);
+            
+            //算權術*********
+
+            //top_choice.push_back(cpy);//對照組(需先將上面註解掉)
+            remain_size++;
+            //cout<<"the qualified one : "<<cpy<<"_____its val is : "<<val<<endl;
+        }else count_suggestion(cpy,(*it));
+    }
+}
+void give_suggestion(){
+    if(to_random){
+        long long rb=top_choice.size()-1;
+        long long lb=0;
+        long long x=(rand()%(rb-lb+1))+lb;
+        ans.second=top_choice[x];
+    }else{
+        ans.second=top_choice[0];
+    }
+    //cout<<"the top choice is : "<<endl; for(long long i=0; i<top_choice.size(); i++) cout<<top_choice[i]<<" "; cout<<endl;
+}
+void to_clear(string data, ptn a){
+    for(auto it=a->child.begin(); it!=a->child.end(); it++){
+        string cpy=data;
+        cpy.push_back((*it)->name);
+        if(cpy.size()==Digits){
+            long long A=0,B=0;
+            for(long long i=0; i<Digits; i++) if(cpy[i]==input[i]) A++;
+            vector<long long> cpy_ele(query_input,query_input+sizeof(query_input)/sizeof(long long));
+            for(long long i=0; i<Digits; i++){
+                if(cpy_ele[cpy[i]-'0']!=0){
+                    B++;
+                    cpy_ele[cpy[i]-'0']--;
+                }
+            }
+            if(A!=n || B!=(m+n)){
+                a->child.erase(it); //{it} has moved to the next element
+                it--;   //so we gotta move it back 1, in that way, it won't jump over elements 
+            }else{
+                for(long long i=0; i<Digits; i++){
+                    info[i][cpy[i]-'0']++;
+                }
+            }
+        }else to_clear(cpy,(*it));
+    }
+}
+string give_random(){   //給出一個隨機答案
+    long long cnt=0;
+    bool arr[10]={false};
+    string rt;
+    while (cnt!=Digits){
+        long long rd=rand()%10;
+        if(arr[rd]==0 || repeatable){
+            rt.push_back(rd+'0');
+            cnt++;
+            arr[rd]=1;
+        }
+    }
+    return rt;
+}
+pair<long long,long long> to_verify(string sample,string corAns){   //給出 幾a幾b 的資訊
+    long long arr[10]={0};
+    long long a=0,b=0;
+    for(long long i=0; i<Digits; i++) arr[corAns[i]-'0']++;
+    for(long long i=0; i<Digits; i++){
+        if(sample[i]==corAns[i]) a++;
+        else if(arr[sample[i]-'0']!=0){
+            arr[sample[i]-'0']--;
+            b++;
+        }
+    }
+    return {a,b};
+}
